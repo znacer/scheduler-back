@@ -1,1 +1,4 @@
-pub mod get_service;
+mod palette;
+mod models;
+
+pub mod services;

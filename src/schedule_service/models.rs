@@ -1,34 +1,10 @@
-use std::fmt;
-
-use actix_web::{get, web, Responder};
+use super::palette::Palette;
 use chrono::{DateTime, Duration, Local, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use utoipa::{OpenApi, ToSchema};
+use std::fmt;
+use utoipa::ToSchema;
 use uuid::Uuid;
-
-#[derive(OpenApi)]
-#[openapi(
-    paths(test),
-    components(schemas(SchedulerDataResponse, TaskDataResponse, SchedulerLabel))
-)]
-pub struct ApiDocGetExample;
-
-#[utoipa::path(
-        responses(
-            (status = 200, description = "Give some example tasks", body = [Vec::<SchedulerDataResponse>], example= json!(vec![TaskDataResponse::new(TaskData::default())]))
-        )
-)]
-#[get("/test")]
-pub async fn test() -> impl Responder {
-    let out = vec![
-        SchedulerDataResponse::random_new("1", Palette::Blue),
-        SchedulerDataResponse::random_new("2", Palette::Pink),
-        SchedulerDataResponse::random_new("3", Palette::Purple),
-    ];
-
-    web::Json(out)
-}
 
 // Structures
 
@@ -43,10 +19,15 @@ impl fmt::Display for Color {
         write!(f, "rgb({},{},{})", self.red, self.green, self.blue)
     }
 }
+impl Color {
+    pub fn new(red: u8, green: u8, blue: u8) -> Self {
+        Self { red, green, blue }
+    }
+}
 
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-struct TaskData {
+pub struct TaskData {
     id: String,
     startDate: DateTime<Utc>,
     endDate: DateTime<Utc>,
@@ -83,7 +64,7 @@ impl TaskData {
 
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema)]
-struct TaskDataResponse {
+pub struct TaskDataResponse {
     id: String,
     startDate: DateTime<Utc>,
     endDate: DateTime<Utc>,
@@ -95,7 +76,7 @@ struct TaskDataResponse {
 }
 
 impl TaskDataResponse {
-    fn new(input: TaskData) -> Self {
+    pub fn new(input: TaskData) -> Self {
         Self {
             id: input.id,
             startDate: input.startDate,
@@ -111,7 +92,7 @@ impl TaskDataResponse {
 
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
-struct SchedulerLabel {
+pub struct SchedulerLabel {
     icon: String,
     title: String,
     subtitle: String,
@@ -125,16 +106,17 @@ impl Default for SchedulerLabel {
         }
     }
 }
+
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema)]
-struct SchedulerDataResponse {
+pub struct SchedulerDataResponse {
     id: String,
     label: SchedulerLabel,
     data: Vec<TaskDataResponse>,
 }
 
 impl SchedulerDataResponse {
-    fn random_new(name: &str, color: Palette) -> Self {
+    pub fn random_new(name: &str, color: Palette) -> Self {
         let mut tasks = vec![];
         for _ in 0..15 {
             let obj = TaskData::random_new(color.rgb());
@@ -146,41 +128,5 @@ impl SchedulerDataResponse {
         out.label.title = String::from(name);
         out.data = tasks.clone();
         out
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Palette {
-    Blue,
-    Orange,
-    Green,
-    Red,
-    Purple,
-    Brown,
-    Pink,
-    Grey,
-    Turquoise,
-    Yellow,
-}
-
-impl Palette {
-    pub fn rgb(&self) -> Color {
-        let c = match self {
-            Palette::Blue => (31, 119, 180),
-            Palette::Orange => (255, 127, 14),
-            Palette::Green => (44, 160, 44),
-            Palette::Red => (214, 39, 40),
-            Palette::Purple => (148, 103, 189),
-            Palette::Brown => (140, 86, 75),
-            Palette::Pink => (227, 119, 194),
-            Palette::Grey => (127, 127, 127),
-            Palette::Turquoise => (23, 190, 207),
-            Palette::Yellow => (255, 187, 33),
-        };
-        Color {
-            red: c.0,
-            green: c.1,
-            blue: c.2,
-        }
     }
 }

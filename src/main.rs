@@ -2,7 +2,7 @@ use actix_cors::Cors;
 use actix_web::{middleware::Logger, web, App, HttpServer};
 use env_logger::Env;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use scheduler_back::schedule_service::*;
+use scheduler_back::schedule_service::services;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -19,7 +19,7 @@ async fn main() -> std::io::Result<()> {
     #[derive(OpenApi)]
     #[openapi(
         nest(
-            (path = "/scheduler-service", api = get_service::ApiDocGetExample),
+            (path = "/scheduler-service", api = services::ApiDocGetExample),
         ),
         // paths(get_service::test),
         tags(
@@ -36,7 +36,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .wrap(cors)
-            .service(web::scope("/scheduler-service").service(get_service::test))
+            .service(web::scope("/scheduler-service").service(services::test))
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
             )
