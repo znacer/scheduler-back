@@ -38,7 +38,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .service(web::scope("/scheduler-service").service(services![
                 schedule_service::update_task,
-                schedule_service::test
+                schedule_service::test,
+                schedule_service::create_tables
             ]))
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),

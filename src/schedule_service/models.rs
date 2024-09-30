@@ -6,8 +6,6 @@ use std::fmt;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-// Structures
-
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Default)]
 pub struct Color {
     red: u8,
@@ -37,7 +35,6 @@ pub struct TaskData {
     description: String,
     bgColor: Color,
 }
-
 impl TaskData {
     fn random_new(bg_color: Color) -> Self {
         let id = Uuid::new_v4().to_string();
@@ -64,18 +61,17 @@ impl TaskData {
 
 #[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema)]
-pub struct TaskDataResponse {
-    id: String,
-    startDate: DateTime<Utc>,
-    endDate: DateTime<Utc>,
-    occupancy: u32,
-    title: String,
-    subtitle: String,
-    description: String,
-    bgColor: String,
+pub struct TaskDataFront {
+    pub id: String,
+    pub startDate: DateTime<Utc>,
+    pub endDate: DateTime<Utc>,
+    pub occupancy: u32,
+    pub title: String,
+    pub subtitle: String,
+    pub description: String,
+    pub bgColor: String,
 }
-
-impl TaskDataResponse {
+impl TaskDataFront {
     pub fn new(input: TaskData) -> Self {
         Self {
             id: input.id,
@@ -112,15 +108,14 @@ impl Default for SchedulerLabel {
 pub struct SchedulerDataResponse {
     id: String,
     label: SchedulerLabel,
-    data: Vec<TaskDataResponse>,
+    data: Vec<TaskDataFront>,
 }
-
 impl SchedulerDataResponse {
     pub fn random_new(name: &str, color: Palette) -> Self {
         let mut tasks = vec![];
         for _ in 0..15 {
             let obj = TaskData::random_new(color.rgb());
-            let obj = TaskDataResponse::new(obj);
+            let obj = TaskDataFront::new(obj);
             tasks.push(obj.clone());
         }
         let mut out = SchedulerDataResponse::default();

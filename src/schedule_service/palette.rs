@@ -1,6 +1,8 @@
+use strum::EnumIter;
+
 use super::models::Color;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, EnumIter)]
 #[allow(dead_code)]
 pub enum Palette {
     Blue,
