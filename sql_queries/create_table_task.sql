@@ -1,6 +1,6 @@
 -- Create table for storing TaskData
 CREATE TABLE IF NOT EXISTS Task (
-    taks_id UUID PRIMARY KEY,
+    task_id UUID PRIMARY KEY,
     start_date TIMESTAMP WITH TIME ZONE NOT NULL,
     end_date TIMESTAMP WITH TIME ZONE NOT NULL,
     occupancy INTEGER NOT NULL,
