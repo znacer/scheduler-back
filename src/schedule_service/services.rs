@@ -1,4 +1,4 @@
-use super::models::{SchedulerDataResponse, SchedulerLabel, TaskData, TaskDataResponse};
+use super::models::{SchedulerDataResponse, SchedulerLabel, TaskData, TaskDataFront};
 use super::palette::Palette;
 use actix_web::{get, web, Responder};
 use utoipa::OpenApi;
@@ -6,13 +6,13 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(test),
-    components(schemas(SchedulerDataResponse, TaskDataResponse, SchedulerLabel))
+    components(schemas(SchedulerDataResponse, TaskDataFront, SchedulerLabel))
 )]
-pub struct ApiDocGetExample;
+pub struct ApiDocScheduler;
 
 #[utoipa::path(
         responses(
-            (status = 200, description = "Give some example tasks", body = [Vec::<SchedulerDataResponse>], example= json!(vec![TaskDataResponse::new(TaskData::default())]))
+            (status = 200, description = "Give some example tasks", body = [Vec::<SchedulerDataResponse>], example= json!(vec![TaskDataFront::new(TaskData::default())]))
         )
 )]
 #[get("/test")]

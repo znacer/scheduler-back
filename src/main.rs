@@ -1,8 +1,8 @@
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{middleware::Logger, services, web, App, HttpServer};
 use env_logger::Env;
 // use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use scheduler_back::schedule_service::services;
+use scheduler_back::schedule_service;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -19,11 +19,11 @@ async fn main() -> std::io::Result<()> {
     #[derive(OpenApi)]
     #[openapi(
         nest(
-            (path = "/scheduler-service", api = services::ApiDocGetExample),
+            (path = "/scheduler-service", api = schedule_service::ApiDocScheduler, tags = ["Scheduler service"]),
         ),
         // paths(get_service::test),
         tags(
-            (name = "Scheduler backend", description = "Backend of the scheduler service, handles data and offer solutions through OR")
+            (name = "Scheduler service", description = "Backend of the scheduler service, handles data and offer solutions through OR")
         )
     )]
     struct ApiDoc;
@@ -36,7 +36,10 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .wrap(cors)
-            .service(web::scope("/scheduler-service").service(services::test))
+            .service(web::scope("/scheduler-service").service(services![
+                schedule_service::update_task,
+                schedule_service::test
+            ]))
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
             )
