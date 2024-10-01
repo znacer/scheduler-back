@@ -3,7 +3,7 @@ use super::palette::Palette;
 use super::utilities;
 use actix_web::http::header::ContentType;
 use actix_web::{get, put, web, HttpResponse, Responder};
-use sqlx::{Connection, Executor, PgConnection};
+use sqlx::{Executor, PgConnection};
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
@@ -33,23 +33,21 @@ pub async fn create_tables() -> impl Responder {
         .body("Tables exists or have been created")
 }
 
+//TODO: produce a working example
 #[utoipa::path(
         responses(
-            (status = 200, description = "Create or update a task")
+            (status = 200, 
+             description = "Create or update a task",
+             example=json!(TaskDataFront::new(TaskData::random_new(Color::Blue)))
+             ),
         )
 )]
 #[put("/update-task")]
-pub async fn update_task(
-    // pool: web::Data<PgPool>,
-    task_data: web::Json<TaskDataFront>,
-) -> impl Responder {
-    let mut conn: PgConnection =
-        PgConnection::connect("postgres://admin:secretpassword@localhost:5432/scheduler ")
-            .await
-            .unwrap();
+pub async fn update_task(task_data: web::Json<TaskDataFront>) -> impl Responder {
+    let mut conn: PgConnection = utilities::sql_connect().await;
     let query = format!(
-        "INSERT INTO public.task_data (id, start_date, end_date, occupancy, title, subtitle, bg_color)
-        VALUES ('{}', '{}', '{}', {}, '{}', '{}', '{}')",
+        "INSERT INTO task (task_id, start_date, end_date, occupancy, title, subtitle, description)
+        VALUES ('{}', '{}', '{}', {}, '{}', '{}', '{}', '{}')",
         task_data.id,
         task_data.startDate,
         task_data.endDate,
@@ -57,6 +55,7 @@ pub async fn update_task(
         task_data.title,
         task_data.subtitle,
         task_data.bgColor,
+        task_data.description
     );
     println!("{}", query);
     conn.execute(query.as_str()).await.unwrap();
