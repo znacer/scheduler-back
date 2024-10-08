@@ -30,16 +30,22 @@ async fn main() -> std::io::Result<()> {
 
     let openapi = ApiDoc::openapi();
     HttpServer::new(move || {
-        let cors = Cors::default().allow_any_origin().send_wildcard();
+        let cors = Cors::default()
+            .allow_any_method()
+            .allow_any_header()
+            .allow_any_origin()
+            .send_wildcard();
 
         App::new()
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .wrap(cors)
-            .service(web::scope("/scheduler-service").service(services![
+            .service(web::scope("/scheduler").service(services![
+                schedule_service::fetch_all,
+                schedule_service::fetch_schedule,
+                schedule_service::update_schedule,
                 schedule_service::update_task,
                 schedule_service::test,
-                schedule_service::create_tables
             ]))
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
