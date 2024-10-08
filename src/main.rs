@@ -19,7 +19,7 @@ async fn main() -> std::io::Result<()> {
     #[derive(OpenApi)]
     #[openapi(
         nest(
-            (path = "/scheduler-service", api = schedule_service::ApiDocScheduler, tags = ["Scheduler service"]),
+            (path = "/scheduler", api = schedule_service::ApiDocScheduler, tags = ["Scheduler service"]),
         ),
         // paths(get_service::test),
         tags(

@@ -1,21 +1,35 @@
+use core::panic;
+
 use super::models::{SchedulerDataResponse, SchedulerLabel, TaskData, TaskDataFront};
 use super::palette::Palette;
 use super::utilities;
 use actix_web::http::header::ContentType;
-use actix_web::{get, put, web, HttpResponse, Responder};
-use sqlx::{Executor, PgConnection};
-use utoipa::OpenApi;
+use actix_web::{get, post, put, web, HttpResponse, Responder};
+use serde::{Deserialize, Serialize};
+use sqlx::prelude::FromRow;
+use sqlx::PgConnection;
+use utoipa::{OpenApi, ToSchema};
+use uuid::{uuid, Uuid};
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(update_task, test, create_tables),
-    components(schemas(SchedulerDataResponse, TaskDataFront, SchedulerLabel))
+    paths(fetch_all, fetch_schedule, update_task, update_schedule, test, create_tables),
+    components(schemas(
+        SchedulerDataResponse,
+        TaskDataFront,
+        SchedulerLabel,
+        FetchScheduleRequest
+    ))
 )]
 pub struct ApiDocScheduler;
 
 #[utoipa::path(
         responses(
-            (status = 201, description = "Creates tables if did not exists")
+            (
+                status = 201, 
+                description = "Creates tables if did not exists", 
+                content_type = "text/plain"
+            )
         )
 )]
 #[put("/create_tables")]
@@ -33,34 +47,106 @@ pub async fn create_tables() -> impl Responder {
         .body("Tables exists or have been created")
 }
 
-//TODO: produce a working example
 #[utoipa::path(
+        request_body(
+            content=TaskDataFront,
+            example=json!( TaskDataFront::example())
+        ),
         responses(
-            (status = 200, 
-             description = "Create or update a task",
-             example=json!(TaskDataFront::new(TaskData::random_new(Color::Blue)))
-             ),
+            (
+                status = 201, 
+                description = "Create or update a task",
+                content_type = "text/plain",
+            ),
         )
 )]
 #[put("/update-task")]
 pub async fn update_task(task_data: web::Json<TaskDataFront>) -> impl Responder {
     let mut conn: PgConnection = utilities::sql_connect().await;
-    let query = format!(
-        "INSERT INTO task (task_id, start_date, end_date, occupancy, title, subtitle, description)
-        VALUES ('{}', '{}', '{}', {}, '{}', '{}', '{}', '{}')",
-        task_data.id,
-        task_data.startDate,
-        task_data.endDate,
-        task_data.occupancy,
-        task_data.title,
-        task_data.subtitle,
-        task_data.bgColor,
-        task_data.description
-    );
-    println!("{}", query);
-    conn.execute(query.as_str()).await.unwrap();
+    let _ = utilities::update_task(&mut conn, &task_data.into_inner()).await;
 
     HttpResponse::Created().body("Task data created successfully")
+}
+
+#[utoipa::path(
+        request_body(
+            content = SchedulerDataResponse,
+            example = json!( 
+                SchedulerDataResponse::random_new(Uuid::new_v4(), "Example", Palette::Blue)
+            )
+        ),
+        responses(
+            (
+                status = 201, 
+                description = "Create or update schedule with its label and tasks",
+                content_type = "text/plain",
+            )
+        )
+)]
+#[put("/update-schedule")]
+pub async fn update_schedule(schedule: web::Json<SchedulerDataResponse>) -> HttpResponse {
+    let mut conn: PgConnection = utilities::sql_connect().await;
+    match utilities::update_schedule(&mut conn, &schedule).await {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("{}", err);
+        }
+    };
+
+    HttpResponse::Created().body("Task data created successfully")
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema, FromRow)]
+struct FetchScheduleRequest {
+    id: Uuid,
+}
+#[utoipa::path(
+        request_body(
+            content = FetchScheduleRequest,
+            example = json!(FetchScheduleRequest {id: uuid!("5bd8f32d-5e63-47e1-a6b7-59848b93a507")})
+        ),
+        responses(
+            (
+                status = 200, 
+                description = "Fetch one schedule defined by its id", 
+                body = SchedulerDataResponse, 
+                example= json!(SchedulerDataResponse::random_new(uuid!("a0479339-beea-4444-a0b0-03d4376f659e"), "Example", Palette::Blue))
+             )
+        )
+)]
+#[post("/fetch-schedule")]
+pub async fn fetch_schedule(
+    project_id: web::Json<FetchScheduleRequest>,
+) -> web::Json<SchedulerDataResponse> {
+    let conn = utilities::sql_connect().await;
+    let (schedule_db, tasks, label) = utilities::fetch_schedule(conn, &project_id.id)
+        .await
+        .unwrap();
+    let schedule = SchedulerDataResponse::parse_from_db(schedule_db, tasks, label);
+
+    web::Json(schedule)
+}
+
+#[utoipa::path(
+        responses(
+            (status = 200, description = "Fetch all schedules", body = [Vec::<SchedulerDataResponse>], example= json!(vec![TaskDataFront::new(TaskData::default())]))
+        )
+)]
+#[get("/fetch-all")]
+pub async fn fetch_all() -> web::Json<Vec<SchedulerDataResponse>> {
+    let mut conn = utilities::sql_connect().await;
+    let query = "SELECT id FROM schedule";
+    let schedule_ids: Vec<FetchScheduleRequest> =
+        sqlx::query_as(query).fetch_all(&mut conn).await.unwrap();
+    let mut all_schedules: Vec<SchedulerDataResponse> = vec![];
+    for id in schedule_ids.iter() {
+        let conn = utilities::sql_connect().await;
+        let (schedule_db, tasks, label) = utilities::fetch_schedule(conn, &id.id).await.unwrap();
+        let schedule = SchedulerDataResponse::parse_from_db(schedule_db, tasks, label);
+        all_schedules.push(schedule);
+    }
+
+    web::Json(all_schedules)
 }
 
 #[utoipa::path(
@@ -71,9 +157,21 @@ pub async fn update_task(task_data: web::Json<TaskDataFront>) -> impl Responder 
 #[get("/test")]
 pub async fn test() -> impl Responder {
     let out = vec![
-        SchedulerDataResponse::random_new("Ressource 1", Palette::Blue),
-        SchedulerDataResponse::random_new("Ressource 2", Palette::Pink),
-        SchedulerDataResponse::random_new("Ressource 3", Palette::Purple),
+        SchedulerDataResponse::random_new(
+            uuid!("a0479339-beea-4444-a0b0-03d4376f659e"),
+            "Ressource 1",
+            Palette::Blue,
+        ),
+        SchedulerDataResponse::random_new(
+            uuid!("11235c9d-05cf-46d7-8cb0-df498c05800d"),
+            "Ressource 2",
+            Palette::Pink,
+        ),
+        SchedulerDataResponse::random_new(
+            uuid!("d79a3708-848b-4c0c-884e-4b547b130b5a"),
+            "Ressource 3",
+            Palette::RANDOM,
+        ),
     ];
 
     web::Json(out)

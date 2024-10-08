@@ -1,8 +1,10 @@
-use strum::EnumIter;
+use itertools::Itertools;
+use rand::seq::SliceRandom;
+use strum::{EnumIter, IntoEnumIterator};
 
 use super::models::Color;
 
-#[derive(Debug, PartialEq, Eq, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 #[allow(dead_code)]
 pub enum Palette {
     Blue,
@@ -15,6 +17,7 @@ pub enum Palette {
     Grey,
     Turquoise,
     Yellow,
+    RANDOM
 }
 
 impl Palette {
@@ -30,7 +33,15 @@ impl Palette {
             Palette::Grey => (127, 127, 127),
             Palette::Turquoise => (23, 190, 207),
             Palette::Yellow => (255, 187, 33),
+            _ => {
+                return Self::random().rgb()
+            }
         };
         Color::new(c.0, c.1, c.2)
+    }
+    pub fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        let colors = Self::iter().collect_vec();
+        *colors.choose(&mut rng).unwrap()
     }
 }
