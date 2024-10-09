@@ -124,9 +124,12 @@ pub(super) async fn fetch_schedule(
         .iter()
         .map(|task| format!("'{}'", &task.to_string()))
         .join(", ");
-    let task_ids = "(".to_string() + task_ids.as_str() + ")";
-    let query = format!("SELECT * FROM task WHERE task_id IN {}", task_ids);
-    let tasks: Vec<TaskDataModel> = sqlx::query_as(query.as_str()).fetch_all(&mut conn).await?;
+    let mut tasks: Vec<TaskDataModel> = vec![];
+    if task_ids.len() > 0 {
+        let task_ids = "(".to_string() + task_ids.as_str() + ")";
+        let query = format!("SELECT * FROM task WHERE task_id IN {}", task_ids);
+        tasks = sqlx::query_as(query.as_str()).fetch_all(&mut conn).await?;
+    }
 
     let query = format!(
         "SELECT * FROM label WHERE label_id = '{}'",
