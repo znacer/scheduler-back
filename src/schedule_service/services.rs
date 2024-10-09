@@ -1,6 +1,6 @@
 use core::panic;
 
-use super::models::{SchedulerDataResponse, SchedulerLabel, TaskData, TaskDataFront};
+use super::models::{SchedulerDataResponse, SchedulerLabel, TaskData, TaskDataFront, NewLabelRequest};
 use super::palette::Palette;
 use super::utilities;
 use actix_web::http::header::ContentType;
@@ -13,12 +13,23 @@ use uuid::{uuid, Uuid};
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(fetch_all, fetch_schedule, update_task, update_schedule, test, create_tables),
+    paths(
+        fetch_all, 
+        fetch_schedule, 
+        update_task, 
+        update_schedule, 
+        test, 
+        create_tables, 
+        list_schedules,
+        new_schedule,
+        ),
     components(schemas(
         SchedulerDataResponse,
         TaskDataFront,
         SchedulerLabel,
-        FetchScheduleRequest
+        FetchScheduleRequest,
+        ScheduleListResponse,
+        NewLabelRequest,
     ))
 )]
 pub struct ApiDocScheduler;
@@ -96,6 +107,34 @@ pub async fn update_schedule(schedule: web::Json<SchedulerDataResponse>) -> Http
     HttpResponse::Created().body("Task data created successfully")
 }
 
+#[utoipa::path(
+        request_body(
+            content = NewLabelRequest,
+            example = json!( 
+                NewLabelRequest::default()
+            )
+        ),
+        responses(
+            (
+                status = 201, 
+                description = "Create a new schedule",
+                content_type = "text/plain",
+            )
+        )
+)]
+#[put("/new-schedule")]
+pub async fn new_schedule(label: web::Json<NewLabelRequest>) -> HttpResponse {
+    let conn: PgConnection = utilities::sql_connect().await;
+    match utilities::new_schedule(conn, &label).await {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("{}", err);
+        }
+    };
+
+    HttpResponse::Created().body("Task data created successfully")
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema, FromRow)]
 struct FetchScheduleRequest {
     id: Uuid,
@@ -147,6 +186,30 @@ pub async fn fetch_all() -> web::Json<Vec<SchedulerDataResponse>> {
     }
 
     web::Json(all_schedules)
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema, FromRow)]
+struct ScheduleListResponse {
+    id: Uuid,
+    title: String,
+    subtitle: String,
+    icon: String,
+}
+#[utoipa::path(
+        responses(
+            (status = 200, description = "list schedules", body = [Vec::<ScheduleListResponse>] )
+        )
+)]
+#[get("/list-schedules")]
+pub async fn list_schedules() -> impl Responder {
+    let mut conn = utilities::sql_connect().await;
+    let query = "SELECT id, title, subtitle, icon FROM public.schedule
+        INNER JOIN public.label
+        ON public.label.label_id = public.schedule.label_id";
+    let schedule_list: Vec<ScheduleListResponse> = sqlx::query_as(query).fetch_all(&mut conn).await.unwrap();
+
+
+    web::Json(schedule_list)
 }
 
 #[utoipa::path(

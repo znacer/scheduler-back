@@ -202,3 +202,11 @@ pub struct LabelDataModel {
     pub title: String,
     pub subtitle: String,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, ToSchema, FromRow, Decode)]
+pub struct NewLabelRequest {
+    pub icon: String,
+    pub title: String,
+    pub subtitle: String,
+}
+

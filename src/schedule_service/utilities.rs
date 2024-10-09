@@ -5,8 +5,8 @@ use sqlx::{Connection, Executor, PgConnection};
 use uuid::Uuid;
 
 use super::models::{
-    LabelDataModel, ScheduleDataModel, SchedulerDataResponse, SchedulerLabel, TaskDataFront,
-    TaskDataModel,
+    LabelDataModel, NewLabelRequest, ScheduleDataModel, SchedulerDataResponse, SchedulerLabel,
+    TaskDataFront, TaskDataModel,
 };
 
 pub(super) async fn sql_connect() -> PgConnection {
@@ -101,7 +101,6 @@ pub(super) async fn update_schedule(
         DO UPDATE SET
                 tasks = EXCLUDED.tasks,
                 label_id = EXCLUDED.label_id;",
-
         schedule.id, task_list, schedule.label.id
     );
     println!("query: {}", query);
@@ -136,4 +135,29 @@ pub(super) async fn fetch_schedule(
     let label: LabelDataModel = sqlx::query_as(query.as_str()).fetch_one(&mut conn).await?;
 
     Ok((schedule_db, tasks, label))
+}
+
+pub(super) async fn new_schedule(
+    mut conn: PgConnection,
+    new_label: &NewLabelRequest,
+) -> Result<(), sqlx::Error> {
+    let label_uuid = uuid::Uuid::new_v4();
+    let query = format!(
+        "INSERT INTO label (label_id, title, subtitle, icon)
+        VALUES ('{}', '{}', '{}', '{}')
+        ;",
+        label_uuid, new_label.title, new_label.subtitle, new_label.icon
+    );
+    conn.execute(query.as_str()).await?;
+
+    let query = format!(
+        "INSERT INTO schedule (id, tasks, label_id)
+        VALUES ('{}', '{}', '{}')
+        ;",
+        uuid::Uuid::new_v4(),
+        "{}",
+        label_uuid
+    );
+    conn.execute(query.as_str()).await?;
+    Ok(())
 }

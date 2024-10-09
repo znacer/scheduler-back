@@ -46,6 +46,8 @@ async fn main() -> std::io::Result<()> {
                 schedule_service::update_schedule,
                 schedule_service::update_task,
                 schedule_service::test,
+                schedule_service::list_schedules,
+                schedule_service::new_schedule,
             ]))
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
