@@ -169,7 +169,7 @@ impl SchedulerDataResponse {
                     description: task_elt.description.clone(),
                     startDate: chrono::Utc.timestamp_opt(task_elt.start_date, 0).unwrap(),
                     endDate: chrono::Utc.timestamp_opt(task_elt.end_date, 0).unwrap(),
-                    bgColor: Palette::Blue.rgb().to_string(),
+                    bgColor: Palette::random().rgb().to_string(),
                     ..Default::default()
                 })
                 .collect_vec(),
@@ -209,4 +209,3 @@ pub struct NewLabelRequest {
     pub title: String,
     pub subtitle: String,
 }
-
