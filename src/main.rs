@@ -1,19 +1,23 @@
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, services, web, App, HttpServer};
 use env_logger::Env;
-// use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use scheduler_back::schedule_service;
+use std::env;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+use scheduler_back::schedule_service;
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-    // builder
-    //     .set_private_key_file("key.pem", SslFiletype::PEM)
-    //     .unwrap();
-    // builder.set_certificate_chain_file("cert.pem").unwrap();
-    //
+    let port = match env::var_os("BACKEND_PORT") {
+        Some(val) => match val.into_string() {
+            Ok(val) => val,
+            _ => "8080".to_string(),
+        },
+        _ => "8080".to_string(),
+    };
+    println!("PORT = {port}");
+
     env_logger::init_from_env(Env::default());
 
     #[derive(OpenApi)]
@@ -21,9 +25,8 @@ async fn main() -> std::io::Result<()> {
         nest(
             (path = "/scheduler", api = schedule_service::ApiDocScheduler, tags = ["Scheduler service"]),
         ),
-        // paths(get_service::test),
         tags(
-            (name = "Scheduler service", description = "Backend of the scheduler service, handles data and offer solutions through OR")
+            (name = "Scheduler service", description = "Backend of the scheduler service")
         )
     )]
     struct ApiDoc;
@@ -41,20 +44,20 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::new("%a %{User-Agent}i"))
             .wrap(cors)
             .service(web::scope("/scheduler").service(services![
-                schedule_service::fetch_all,
-                schedule_service::fetch_schedule,
-                schedule_service::update_schedule,
-                schedule_service::update_task,
-                schedule_service::test,
+                schedule_service::create_tables,
+                schedule_service::list_tasks,
                 schedule_service::list_schedules,
                 schedule_service::new_schedule,
+                schedule_service::new_task,
+                schedule_service::update_task,
+                schedule_service::update_schedule,
             ]))
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
             )
     })
     // .bind_openssl("127.0.0.1:8080", builder)?
-    .bind("127.0.0.1:3000")?
+    .bind(format!("0.0.0.0:{}", port))?
     .run()
     .await
 }

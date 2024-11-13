@@ -10,7 +10,7 @@ chrono = { version = "0.4.38", features = ["serde"] }
 env_logger = "0.11.5"
 itertools = "0.13.0"
 log = { version = "0.4.22", features = ["serde", "std"] }
-openssl = "0.10.66"
+openssl = { version = "0.10.66", features = ["vendored"] }
 # polars = { version = "0.43.0", features = ["cloud", "csv", "dtype-full", "json", "lazy", "log", "parquet", "performant", "pivot", "random", "rolling_window", "rows", "serde"] }
 # prusto = { version = "0.5.1", features = ["presto"] }
 rand = "0.8.5"

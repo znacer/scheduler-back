@@ -1,16 +1,52 @@
-use std::fs;
-
-use itertools::Itertools;
 use sqlx::{Connection, Executor, PgConnection};
-use uuid::Uuid;
+use std::{env, fs};
 
-use super::models::{
-    LabelDataModel, NewLabelRequest, ScheduleDataModel, SchedulerDataResponse, SchedulerLabel,
-    TaskDataFront, TaskDataModel,
-};
+use super::models::{Schedule, Task};
 
 pub(super) async fn sql_connect() -> PgConnection {
-    PgConnection::connect("postgres://admin:secretpassword@localhost:5432/scheduler")
+    let username = match env::var_os("POSTGRES_USER") {
+        Some(val) => match val.into_string() {
+            Ok(val) => val,
+            _ => "postgres".to_string(),
+        },
+        _ => "postgres".to_string(),
+    };
+
+    let password = match env::var_os("POSTGRES_PASSWORD") {
+        Some(val) => match val.into_string() {
+            Ok(val) => val,
+            _ => "mysecretpassword".to_string(),
+        },
+        _ => "mysecretpassword".to_string(),
+    };
+
+    let address = match env::var_os("POSTGRES_HOST") {
+        Some(val) => match val.into_string() {
+            Ok(val) => val,
+            _ => "localhost".to_string(),
+        },
+        _ => "localhost".to_string(),
+    };
+
+    let port = match env::var_os("POSTGRES_PORT") {
+        Some(val) => match val.into_string() {
+            Ok(val) => val,
+            _ => "5432".to_string(),
+        },
+        _ => "5432".to_string(),
+    };
+
+    let schema = match env::var_os("POSTGRES_DATABASE") {
+        Some(val) => match val.into_string() {
+            Ok(val) => val,
+            _ => "public".to_string(),
+        },
+        _ => "public".to_string(),
+    };
+
+    let connection_string = format!("postgress://{username}:{password}@{address}:{port}/{schema}");
+    println!("{}", connection_string);
+    PgConnection::connect(connection_string.as_str())
         .await
         .unwrap()
 }
@@ -18,10 +54,11 @@ pub(super) async fn sql_connect() -> PgConnection {
 pub(super) async fn create_tables() -> Result<(), sqlx::Error> {
     let mut conn: PgConnection = sql_connect().await;
 
+    println!("create_tables");
     let queries_path = vec![
-        "sql_queries/create_table_task.sql",
-        "sql_queries/create_table_label.sql",
         "sql_queries/create_table_schedule.sql",
+        "sql_queries/create_table_task.sql",
+        "sql_queries/create_table_users.sql",
     ];
     for query_path in queries_path.iter() {
         let query = fs::read_to_string(query_path)?;
@@ -31,136 +68,95 @@ pub(super) async fn create_tables() -> Result<(), sqlx::Error> {
 }
 
 pub(super) async fn update_task(
-    conn: &mut PgConnection,
-    task_data: &TaskDataFront,
-) -> Result<(), sqlx::Error> {
+    mut conn: PgConnection,
+    task_data: &Task,
+) -> Result<Task, sqlx::Error> {
     let query = format!(
-        "INSERT INTO task (task_id, start_date, end_date, occupancy, title, subtitle, description)
+        "INSERT INTO task (id, name, start, duration, description, category, schedule_id)
         VALUES ('{}', '{}', {}, '{}', '{}', '{}', '{}')
-            ON CONFLICT (task_id)
+            ON CONFLICT (id)
             DO UPDATE SET
-                start_date = EXCLUDED.start_date,
-                end_date = EXCLUDED.end_date,
-                occupancy = EXCLUDED.occupancy,
-                title = EXCLUDED.title,
-                subtitle = EXCLUDED.subtitle,
-                description = EXCLUDED.description
+                name = EXCLUDED.name,
+                start = EXCLUDED.start,
+                duration = EXCLUDED.duration,
+                description = EXCLUDED.description,
+                category = EXCLUDED.category,
+                schedule_id = EXCLUDED.schedule_id
+        RETURNING *
         ;",
         task_data.id,
-        task_data.startDate.timestamp(),
-        task_data.endDate.timestamp(),
-        task_data.occupancy,
-        task_data.title,
-        task_data.subtitle,
-        task_data.description
+        task_data.name,
+        task_data.start,
+        task_data.duration,
+        task_data.description,
+        task_data.category,
+        task_data.schedule_id
     );
-    conn.execute(query.as_str()).await?;
-    Ok(())
-}
-
-pub(super) async fn update_label(
-    conn: &mut PgConnection,
-    label_data: &SchedulerLabel,
-) -> Result<(), sqlx::Error> {
-    let query = format!(
-        // "INSERT INTO label (label_id, icon, subtitle, title)
-        // VALUES ('{}', '{}', {}, '{}')",
-        "INSERT INTO label (label_id, icon, subtitle, title)
-            VALUES ('{}', '{}', '{}', '{}')
-            ON CONFLICT (label_id)
-            DO UPDATE SET
-                icon = EXCLUDED.icon,
-                subtitle = EXCLUDED.subtitle,
-                title = EXCLUDED.title;",
-        label_data.id, label_data.icon, label_data.subtitle, label_data.title
-    );
-    println!("label_data: {:?}", query);
-    conn.execute(query.as_str()).await?;
-    Ok(())
+    let out: Task = sqlx::query_as(query.as_str())
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    Ok(out)
 }
 
 pub(super) async fn update_schedule(
-    conn: &mut PgConnection,
-    schedule: &SchedulerDataResponse,
-) -> Result<(), sqlx::Error> {
-    for task in schedule.data.iter() {
-        update_task(conn, &task).await?;
-    }
-    update_label(conn, &schedule.label).await?;
-
-    let task_list: String = schedule
-        .data
-        .iter()
-        .map(|task| format!("{}", &task.id.to_string()))
-        .join(", ");
-    let task_list = "{".to_string() + task_list.as_str() + "}";
+    mut conn: PgConnection,
+    schedule: &Schedule,
+) -> Result<Schedule, sqlx::Error> {
     let query = format!(
-        "INSERT INTO schedule (id, tasks, label_id)
+        "INSERT INTO schedule (id, name, description)
         VALUES ('{}', '{}', '{}')
         ON CONFLICT (id)
         DO UPDATE SET
-                tasks = EXCLUDED.tasks,
-                label_id = EXCLUDED.label_id;",
-        schedule.id, task_list, schedule.label.id
+                name = EXCLUDED.name,
+                description = EXCLUDED.description
+        RETURNING *
+        ;",
+        schedule.id, schedule.name, schedule.description
     );
-    println!("query: {}", query);
-    conn.execute(query.as_str()).await?;
-    Ok(())
-}
-
-pub(super) async fn fetch_schedule(
-    mut conn: PgConnection,
-    schedule_id: &Uuid,
-) -> Result<(ScheduleDataModel, Vec<TaskDataModel>, LabelDataModel), sqlx::Error> {
-    let query = format!(
-        "SELECT * FROM schedule WHERE id = '{}'",
-        schedule_id.to_string()
-    );
-    let schedule_db: ScheduleDataModel =
-        sqlx::query_as(query.as_str()).fetch_one(&mut conn).await?;
-
-    let task_ids = schedule_db
-        .tasks
-        .iter()
-        .map(|task| format!("'{}'", &task.to_string()))
-        .join(", ");
-    let mut tasks: Vec<TaskDataModel> = vec![];
-    if task_ids.len() > 0 {
-        let task_ids = "(".to_string() + task_ids.as_str() + ")";
-        let query = format!("SELECT * FROM task WHERE task_id IN {}", task_ids);
-        tasks = sqlx::query_as(query.as_str()).fetch_all(&mut conn).await?;
-    }
-
-    let query = format!(
-        "SELECT * FROM label WHERE label_id = '{}'",
-        schedule_db.label_id
-    );
-    let label: LabelDataModel = sqlx::query_as(query.as_str()).fetch_one(&mut conn).await?;
-
-    Ok((schedule_db, tasks, label))
+    let out: Schedule = sqlx::query_as(query.as_str())
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    Ok(out)
 }
 
 pub(super) async fn new_schedule(
     mut conn: PgConnection,
-    new_label: &NewLabelRequest,
-) -> Result<(), sqlx::Error> {
-    let label_uuid = uuid::Uuid::new_v4();
+    new_schedule: &Schedule,
+) -> Result<Schedule, sqlx::Error> {
     let query = format!(
-        "INSERT INTO label (label_id, title, subtitle, icon)
-        VALUES ('{}', '{}', '{}', '{}')
+        "INSERT INTO schedule (name, description)
+        VALUES ('{}', '{}')
+        RETURNING *
         ;",
-        label_uuid, new_label.title, new_label.subtitle, new_label.icon
+        new_schedule.name, new_schedule.description
     );
-    conn.execute(query.as_str()).await?;
 
+    let out: Schedule = sqlx::query_as(query.as_str())
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    Ok(out)
+}
+
+pub(super) async fn new_task(mut conn: PgConnection, new_task: &Task) -> Result<Task, sqlx::Error> {
     let query = format!(
-        "INSERT INTO schedule (id, tasks, label_id)
-        VALUES ('{}', '{}', '{}')
+        "INSERT INTO task (name, start, duration, description, category, schedule_id)
+        VALUES ('{}', {}, '{}', '{}', '{}', '{}')
+        RETURNING *
         ;",
-        uuid::Uuid::new_v4(),
-        "{}",
-        label_uuid
+        new_task.name,
+        new_task.start,
+        new_task.duration,
+        new_task.description,
+        new_task.category,
+        new_task.schedule_id
     );
-    conn.execute(query.as_str()).await?;
-    Ok(())
+
+    let out: Task = sqlx::query_as(query.as_str())
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    Ok(out)
 }
