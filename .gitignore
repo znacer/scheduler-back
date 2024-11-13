@@ -63,3 +63,5 @@ swap-pane
 
 # certificates
 *.pem
+
+.env

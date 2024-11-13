@@ -1,4 +1,5 @@
-mod palette;
 mod models;
+mod services;
+mod utilities;
 
-pub mod services;
+pub use services::*;
