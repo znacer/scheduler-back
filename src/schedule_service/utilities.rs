@@ -28,14 +28,6 @@ pub(super) async fn sql_connect() -> PgConnection {
         _ => "localhost".to_string(),
     };
 
-    let port = match env::var_os("POSTGRES_PORT") {
-        Some(val) => match val.into_string() {
-            Ok(val) => val,
-            _ => "5432".to_string(),
-        },
-        _ => "5432".to_string(),
-    };
-
     let schema = match env::var_os("POSTGRES_DATABASE") {
         Some(val) => match val.into_string() {
             Ok(val) => val,
@@ -44,8 +36,7 @@ pub(super) async fn sql_connect() -> PgConnection {
         _ => "public".to_string(),
     };
 
-    let connection_string = format!("postgress://{username}:{password}@{address}:{port}/{schema}");
-    println!("{}", connection_string);
+    let connection_string = format!("postgress://{username}:{password}@{address}/{schema}");
     PgConnection::connect(connection_string.as_str())
         .await
         .unwrap()
@@ -56,9 +47,25 @@ pub(super) async fn create_tables() -> Result<(), sqlx::Error> {
 
     println!("create_tables");
     let queries_path = vec![
-        "sql_queries/create_table_schedule.sql",
-        "sql_queries/create_table_task.sql",
-        "sql_queries/create_table_users.sql",
+        " CREATE TABLE IF NOT EXISTS schedule (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT
+  ) ",
+        " CREATE TABLE IF NOT EXISTS task (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    start BIGINT,
+    duration BIGINT,
+    schedule_id BIGSERIAL REFERENCES schedule (id),
+    description TEXT,
+    category INTEGER
+  ) ",
+        "CREATE TABLE IF NOT EXISTS user_right (
+      username VARCHAR(255),
+      schedule_id BIGSERIAL REFERENCES schedule (id),
+      write BOOLEAN
+  ) ",
     ];
     for query_path in queries_path.iter() {
         let query = fs::read_to_string(query_path)?;

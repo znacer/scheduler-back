@@ -15,17 +15,6 @@ pub struct Task {
 }
 
 impl Task {
-    pub fn new(input: Task) -> Self {
-        Self {
-            id: input.id,
-            name: input.name,
-            start: input.start,
-            duration: input.duration,
-            description: input.description,
-            category: input.category,
-            schedule_id: input.schedule_id,
-        }
-    }
     pub fn example() -> Self {
         Task {
             id: 1,
@@ -44,4 +33,39 @@ pub struct Schedule {
     pub(super) id: i64,
     pub(super) name: String,
     pub(super) description: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema, FromRow, Default)]
+pub struct Group {
+    pub(super) id: i64,
+    pub(super) name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema, FromRow, Default)]
+pub struct User {
+    pub(super) id: i64,
+    pub(super) name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema, FromRow, Default)]
+pub struct UserGroup {
+    pub(super) id: i64,
+    pub(super) user_id: i64,
+    pub(super) group_id: i64,
+    pub(super) admin: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema, FromRow, Default)]
+pub struct ScheduleGroup {
+    pub(super) id: i64,
+    pub(super) schedule_id: i64,
+    pub(super) group_id: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema, FromRow, Default)]
+pub struct GroupRights {
+    pub(super) id: i64,
+    pub(super) group_id: i64,
+    pub(super) schedule_id: i64,
+    pub(super) write: bool,
 }
