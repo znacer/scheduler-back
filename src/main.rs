@@ -23,11 +23,8 @@ async fn main() -> std::io::Result<()> {
     #[derive(OpenApi)]
     #[openapi(
         nest(
-            (path = "/scheduler", api = schedule_service::ApiDocScheduler, tags = ["Scheduler service"]),
+            (path = "/scheduler", api = schedule_service::ApiDocScheduler),
         ),
-        tags(
-            (name = "Scheduler service", description = "Backend of the scheduler service")
-        )
     )]
     struct ApiDoc;
 
@@ -43,15 +40,35 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .wrap(cors)
-            .service(web::scope("/scheduler").service(services![
-                schedule_service::create_tables,
-                schedule_service::list_tasks,
-                schedule_service::list_schedules,
-                schedule_service::new_schedule,
-                schedule_service::new_task,
-                schedule_service::update_task,
-                schedule_service::update_schedule,
-            ]))
+            .service(
+                web::scope("/scheduler")
+                    .service(schedule_service::create_tables)
+                    .service(services![
+                        schedule_service::list_tasks,
+                        schedule_service::new_task,
+                        schedule_service::update_task,
+                    ])
+                    .service(services![
+                        schedule_service::list_schedules,
+                        schedule_service::new_schedule,
+                        schedule_service::update_schedule,
+                    ])
+                    .service(services![
+                        schedule_service::list_categories,
+                        schedule_service::new_category,
+                        schedule_service::update_category,
+                    ])
+                    .service(services![
+                        schedule_service::list_users,
+                        schedule_service::new_user,
+                        //TODO: DELETE USER
+                    ])
+                    .service(services![
+                        schedule_service::list_groups,
+                        schedule_service::new_group,
+                        //TODO: DELETE GROUP
+                    ]),
+            )
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
             )
