@@ -1,6 +1,8 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::{m20241127_174046_create_table_schedule::Schedule, m20241127_174141_create_table_group::Group};
+use crate::{
+    m20241127_174046_create_table_schedule::Schedule, m20241127_174141_create_table_group::Group,
+};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

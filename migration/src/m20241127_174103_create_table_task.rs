@@ -1,7 +1,8 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
 use crate::{
-    m20241127_174046_create_table_schedule::Schedule, m20241127_174053_create_table_category::Category
+    m20241127_174046_create_table_schedule::Schedule,
+    m20241127_174053_create_table_category::Category,
 };
 
 #[derive(DeriveMigrationName)]
