@@ -47,11 +47,13 @@ async fn main() -> std::io::Result<()> {
                         schedule_service::list_tasks,
                         schedule_service::new_task,
                         schedule_service::update_task,
+                        schedule_service::delete_task,
                     ])
                     .service(services![
                         schedule_service::list_schedules,
                         schedule_service::new_schedule,
                         schedule_service::update_schedule,
+                        schedule_service::delete_schedule,
                     ])
                     .service(services![
                         schedule_service::list_categories,
@@ -61,12 +63,13 @@ async fn main() -> std::io::Result<()> {
                     .service(services![
                         schedule_service::list_users,
                         schedule_service::new_user,
-                        //TODO: DELETE USER
+                        schedule_service::delete_user,
+                        schedule_service::delete_user,
                     ])
                     .service(services![
                         schedule_service::list_groups,
                         schedule_service::new_group,
-                        //TODO: DELETE GROUP
+                        schedule_service::delete_group,
                     ]),
             )
             .service(

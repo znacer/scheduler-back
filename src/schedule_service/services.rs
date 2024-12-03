@@ -1,10 +1,12 @@
 use super::utilities;
-use super::{services_schedule::*, services_task::*, services_category::*, services_user::*, services_group::*};
-use ::entity::{task, schedule};
+use super::{
+    services_category::*, services_group::*, services_schedule::*, services_task::*,
+    services_user::*,
+};
+use ::entity::{schedule, task};
 use actix_web::http::header::ContentType;
 use actix_web::{put, HttpResponse};
 use utoipa::OpenApi;
-
 
 #[derive(OpenApi)]
 #[openapi(
@@ -13,28 +15,29 @@ use utoipa::OpenApi;
         list_tasks,
         new_task,
         update_task,
+        delete_task,
         list_schedules,
         new_schedule,
         update_schedule,
+        delete_schedule,
         list_categories,
         new_category,
         update_category,
         list_users,
         new_user,
+        delete_user,
         list_groups,
-        new_group
+        new_group,
+        delete_group
     ),
-    components(schemas(
-            schedule::Model,
-            task::Model,
-    ))
+    components(schemas(schedule::Model, task::Model,))
 )]
 pub struct ApiDocScheduler;
 
 #[utoipa::path(
         responses(
             (
-                status = 201, 
+                status = 201,
                 description = "Creates tables if did not exists", 
                 content_type = "text/plain"
             )

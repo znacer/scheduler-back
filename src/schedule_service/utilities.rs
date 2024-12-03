@@ -1,7 +1,13 @@
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{Database, DatabaseConnection, DbErr};
+use serde::{Deserialize, Serialize};
 use std::env;
+use utoipa::ToSchema;
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct IdRequest {
+    pub id: i32,
+}
 pub async fn sql_connect() -> DatabaseConnection {
     let username = match env::var_os("POSTGRES_USER") {
         Some(val) => match val.into_string() {
