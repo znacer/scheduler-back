@@ -1,6 +1,12 @@
+use actix_web::{http::header::Header, Error, HttpRequest};
+use actix_web_httpauth::headers::{self, authorization::Bearer};
+use base64::prelude::*;
+use itertools::Itertools;
+use log::debug;
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::env;
 use utoipa::ToSchema;
 
@@ -48,4 +54,20 @@ pub async fn sql_connect() -> DatabaseConnection {
 pub(super) async fn create_tables() -> Result<(), DbErr> {
     let db = sql_connect().await;
     Migrator::up(&db, None).await
+}
+
+pub fn token_username(req: &HttpRequest) -> Result<String, Error> {
+    let token = headers::authorization::Authorization::<Bearer>::parse(req)?;
+    let token = token.as_ref().token();
+    let data = token.split(".").collect_vec()[1];
+    let data = data.to_string() + "==";
+
+    debug!("{}", data);
+    let output = BASE64_STANDARD.decode(data).unwrap();
+    let output = String::from_utf8(output).unwrap();
+    let output: serde_json::Value = serde_json::from_str(&output)?;
+    let output = output["name"].to_string().replace("\"", "");
+
+    debug!("TEST: {}", output);
+    Ok(output)
 }

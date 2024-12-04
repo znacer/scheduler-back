@@ -1,7 +1,6 @@
 use super::utilities;
 use ::entity::user;
-use actix_web::{delete, get, put, web, Error, HttpResponse};
-use log::debug;
+use actix_web::{delete, get, put, web, Error, HttpRequest, HttpResponse};
 use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
 
 #[utoipa::path(
@@ -46,6 +45,36 @@ pub async fn new_user(user: web::Json<user::Model>) -> Result<HttpResponse, Erro
         ..Default::default()
     };
     let _ = this_user.set_from_json(serde_json::json!(user));
+
+    let result = this_user
+        .insert(&db)
+        .await
+        .map_err(|err| actix_web::error::ErrorInternalServerError(err))?;
+    Ok(HttpResponse::Created().json(web::Json(result)))
+}
+
+#[utoipa::path(
+        responses(
+            (
+                status = 201,
+                description = "the newly created user",
+                content_type = "text/json",
+            )
+        ),
+        tag = "user",
+        description = "create new user",
+        security(
+            ("bearer_token" = [])
+        )
+)]
+#[put("/create-my-user")]
+pub async fn create_my_user(req: HttpRequest) -> Result<HttpResponse, Error> {
+    let username = utilities::token_username(&req)?;
+    let db = utilities::sql_connect().await;
+    let this_user = user::ActiveModel {
+        id: ActiveValue::NotSet,
+        name: ActiveValue::Set(username),
+    };
 
     let result = this_user
         .insert(&db)

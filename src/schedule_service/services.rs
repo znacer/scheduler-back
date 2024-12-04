@@ -1,7 +1,7 @@
 use super::utilities;
 use super::{
-    services_category::*, services_group::*, services_schedule::*, services_task::*,
-    services_user::*,
+    services_category::*, services_group::*, services_schedule::*, services_schedule_group::*,
+    services_task::*, services_user::*, services_user_group::*,
 };
 use ::entity::{schedule, task};
 use actix_web::http::header::ContentType;
@@ -25,10 +25,18 @@ use utoipa::OpenApi;
         update_category,
         list_users,
         new_user,
+        create_my_user,
         delete_user,
         list_groups,
         new_group,
-        delete_group
+        delete_group,
+        list_user_groups,
+        new_user_group,
+        delete_user_group,
+        list_my_groups,
+        list_schedule_groups,
+        new_schedule_group,
+        delete_schedule_group
     ),
     components(schemas(schedule::Model, task::Model,))
 )]
@@ -42,7 +50,10 @@ pub struct ApiDocScheduler;
                 content_type = "text/plain"
             )
         ),
-        tag = "admin"
+        tag = "admin",
+        security(
+            ("bearerAuth" = [])
+        )
 )]
 #[put("/create_tables")]
 pub async fn create_tables() -> HttpResponse {

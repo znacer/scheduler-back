@@ -1,7 +1,8 @@
-use super::utilities;
+use super::{services_user_group, utilities};
+use crate::errors::ProjectError as Error;
 use ::entity::group;
-use actix_web::{delete, get, put, web, Error, HttpResponse};
-use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
+use actix_web::{delete, get, put, web, HttpRequest, HttpResponse};
+use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 
 #[utoipa::path(
         responses(
@@ -12,10 +13,8 @@ use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
 #[get("/list-groups")]
 pub async fn list_groups() -> Result<HttpResponse, Error> {
     let db = utilities::sql_connect().await;
-    let response = group::Entity::find()
-        .all(&db)
-        .await
-        .map_err(|err| actix_web::error::ErrorInternalServerError(err))?;
+    let response = group::Entity::find().all(&db).await?;
+    // .map_err(|err| actix_web::error::ErrorInternalServerError(err))?;
     Ok(HttpResponse::Ok().json(web::Json(response)))
 }
 
@@ -33,10 +32,17 @@ pub async fn list_groups() -> Result<HttpResponse, Error> {
                 content_type = "text/json",
             )
         ),
-        tag = "group"
+        tag = "group",
+        security(
+            ("bearer_token" = [])
+        )
 )]
 #[put("/new-group")]
-pub async fn new_group(group: web::Json<group::Model>) -> Result<HttpResponse, Error> {
+pub async fn new_group(
+    req: HttpRequest,
+    group: web::Json<group::Model>,
+) -> Result<HttpResponse, Error> {
+    let username = utilities::token_username(&req)?;
     let db = utilities::sql_connect().await;
     let mut this_group = group::ActiveModel {
         id: ActiveValue::NotSet,
@@ -44,10 +50,19 @@ pub async fn new_group(group: web::Json<group::Model>) -> Result<HttpResponse, E
     };
     let _ = this_group.set_from_json(serde_json::json!(group));
 
-    let result = this_group
-        .insert(&db)
+    let result = this_group.insert(&db).await?;
+    let user_id = ::entity::user::Entity::find()
+        .filter(::entity::user::Column::Name.contains(username))
+        .one(&db)
         .await
-        .map_err(|err| actix_web::error::ErrorInternalServerError(err))?;
+        .unwrap();
+    let user_group = ::entity::user_group::Model {
+        id: 0,
+        group_id: result.id,
+        user_id: user_id.unwrap().id,
+        admin: true,
+    };
+    let result = services_user_group::fn_new_user_group(&user_group).await?;
     Ok(HttpResponse::Created().json(web::Json(result)))
 }
 
@@ -73,19 +88,13 @@ pub async fn delete_group(
     group_id: web::Json<utilities::IdRequest>,
 ) -> Result<HttpResponse, Error> {
     let db = utilities::sql_connect().await;
-    let this_group = group::Entity::find_by_id(group_id.id)
-        .one(&db)
-        .await
-        .map_err(|err| actix_web::error::ErrorInternalServerError(err))?;
+    let this_group = group::Entity::find_by_id(group_id.id).one(&db).await?;
     let this_group: group::ActiveModel = match this_group {
         Some(v) => v.into(),
-        None => return Err(actix_web::error::ErrorNotFound("No ID found")),
+        None => return Ok(actix_web::error::ErrorNotFound("No ID found").into()),
     };
 
-    let _ = this_group
-        .delete(&db)
-        .await
-        .map_err(|err| actix_web::error::ErrorInternalServerError(err))?;
+    let _ = this_group.delete(&db).await?;
 
     Ok(HttpResponse::NoContent().into())
 }
