@@ -2,7 +2,8 @@ use super::{services_user_group, utilities};
 use crate::errors::ProjectError as Error;
 use ::entity::group;
 use actix_web::{delete, get, put, web, HttpRequest, HttpResponse};
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
+use entity::user_group;
+use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, Condition, EntityTrait, QueryFilter};
 
 #[utoipa::path(
         responses(
@@ -44,6 +45,15 @@ pub async fn new_group(
 ) -> Result<HttpResponse, Error> {
     let username = utilities::token_username(&req)?;
     let db = utilities::sql_connect().await;
+    // check if the group does not already exists
+    let this_group: Option<group::Model> = group::Entity::find()
+        .filter(Condition::all().add(group::Column::Name.eq(group.clone().name)))
+        .one(&db)
+        .await?;
+    if this_group.is_some() {
+        return Ok(HttpResponse::BadRequest().body("group alread exists"));
+    }
+
     let mut this_group = group::ActiveModel {
         id: ActiveValue::NotSet,
         ..Default::default()
@@ -51,6 +61,8 @@ pub async fn new_group(
     let _ = this_group.set_from_json(serde_json::json!(group));
 
     let result = this_group.insert(&db).await?;
+
+    // add user to the group
     let user_id = ::entity::user::Entity::find()
         .filter(::entity::user::Column::Name.contains(username))
         .one(&db)
@@ -90,10 +102,15 @@ pub async fn delete_group(
     let db = utilities::sql_connect().await;
     let this_group = group::Entity::find_by_id(group_id.id).one(&db).await?;
     let this_group: group::ActiveModel = match this_group {
-        Some(v) => v.into(),
+        Some(v) => {
+            // remove from user_group first
+            let _ = user_group::Entity::delete_many().filter(user_group::Column::GroupId.eq(v.id));
+            v.into()
+        }
         None => return Ok(actix_web::error::ErrorNotFound("No ID found").into()),
     };
 
+    //remove group
     let _ = this_group.delete(&db).await?;
 
     Ok(HttpResponse::NoContent().into())

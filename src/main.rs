@@ -86,6 +86,7 @@ async fn main() -> std::io::Result<()> {
                         schedule_service::new_group,
                         schedule_service::delete_group,
                         schedule_service::list_my_groups,
+                        schedule_service::list_my_groups_admin,
                     ])
                     .service(services![
                         schedule_service::list_user_groups,

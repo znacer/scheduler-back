@@ -34,6 +34,7 @@ use utoipa::OpenApi;
         new_user_group,
         delete_user_group,
         list_my_groups,
+        list_my_groups_admin,
         list_schedule_groups,
         new_schedule_group,
         delete_schedule_group

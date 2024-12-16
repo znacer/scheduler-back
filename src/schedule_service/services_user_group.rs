@@ -6,6 +6,8 @@ use entity::user;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DbErr, EntityTrait, ModelTrait, QueryFilter,
 };
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 #[utoipa::path(
         responses(
@@ -14,16 +16,22 @@ use sea_orm::{
         tag = "user_group",
         description = "list all user_groups"
 )]
-#[get("/list-user_groups")]
+#[get("/list-user-groups")]
 pub async fn list_user_groups() -> Result<HttpResponse, Error> {
     let db = utilities::sql_connect().await;
     let response = user_group::Entity::find().all(&db).await?;
     Ok(HttpResponse::Ok().json(web::Json(response)))
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct GroupResponse {
+    pub id: i32,
+    pub name: String,
+    pub admin: bool,
+}
 #[utoipa::path(
         responses(
-            (status = 200, description = "list of the user's groups", body = Vec::<user_group::Model> )
+            (status = 200, description = "list of the user's groups", body = Vec::<GroupResponse> )
         ),
         tag = "user_group",
         description = "list all the groups of the user",
@@ -41,8 +49,55 @@ pub async fn list_my_groups(req: HttpRequest) -> Result<HttpResponse, Error> {
         .await?
         .unwrap();
 
-    let response = user_elt
+    let groups = user_elt
         .find_linked(::entity::links::UserToGroup)
+        .all(&db)
+        .await
+        .unwrap();
+
+    let groups_admin = user_elt
+        .find_linked(::entity::links::UserToGroupAdmin)
+        .all(&db)
+        .await
+        .unwrap();
+
+    let response: Vec<GroupResponse> = groups
+        .iter()
+        .map(|group| {
+            let admin: bool = groups_admin.contains(group);
+            GroupResponse {
+                id: group.id,
+                name: group.name.clone(),
+                admin,
+            }
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(web::Json(response)))
+}
+
+#[utoipa::path(
+        responses(
+            (status = 200, description = "list of the user's groups where user is admin", body = Vec::<user_group::Model> )
+        ),
+        tag = "user_group",
+        description = "list all the groups of the user",
+        security(
+            ("bearer_token" = [])
+        )
+)]
+#[get("/list-my-groups-admin")]
+pub async fn list_my_groups_admin(req: HttpRequest) -> Result<HttpResponse, Error> {
+    let username = utilities::token_username(&req)?;
+    let db = utilities::sql_connect().await;
+    let user_elt: user::Model = user::Entity::find()
+        .filter(user::Column::Name.eq(&username))
+        .one(&db)
+        .await?
+        .unwrap();
+
+    let response = user_elt
+        .find_linked(::entity::links::UserToGroupAdmin)
         .all(&db)
         .await
         .unwrap();
@@ -102,10 +157,7 @@ pub async fn fn_new_user_group(user_group: &user_group::Model) -> Result<user_gr
 
 #[utoipa::path(
         request_body(
-            content = utilities::IdRequest,
-            example = json!(
-                utilities::IdRequest { id: 0}
-            )
+            content = String,
         ),
         responses(
             (
@@ -115,26 +167,36 @@ pub async fn fn_new_user_group(user_group: &user_group::Model) -> Result<user_gr
             )
         ),
         description = "Delete a user_group based on its id",
-        tag = "user_group"
-)]
-#[delete("/delete-user_group")]
-pub async fn delete_user_group(
-    _user_id: web::Json<utilities::IdRequest>,
-) -> Result<HttpResponse, Error> {
-    //     let db = utilities::sql_connect().await;
-    //     let this_user_group = user_group::Entity::find_by_id(user_id.id)
-    //         .one(&db)
-    //         .await
-    //         .map_err(|err| actix_web::error::ErrorInternalServerError(err))?;
-    //     let this_user_group: user_group::ActiveModel = match this_user_group {
-    //         Some(v) => v.into(),
-    //         None => return Err(actix_web::error::ErrorNotFound("No ID found")),
-    //     };
-    //
-    //     let _ = this_user_group
-    //         .delete(&db)
-    //         .await
-    //         .map_err(|err| actix_web::error::ErrorInternalServerError(err))?;
+        tag = "user_group",
+        security(
+            ("bearer_token" = [])
+        )
 
-    Ok(HttpResponse::NotImplemented().finish())
+)]
+#[delete("/delete-user-group")]
+pub async fn delete_user_group(req: HttpRequest, group_id: String) -> Result<HttpResponse, Error> {
+    let username = utilities::token_username(&req)?;
+    let db = utilities::sql_connect().await;
+    let user_elt: user::Model = user::Entity::find()
+        .filter(user::Column::Name.eq(&username))
+        .one(&db)
+        .await?
+        .unwrap();
+    let to_remove: Option<user_group::Model> = user_group::Entity::find()
+        .filter(
+            Condition::all()
+                .add(user_group::Column::GroupId.eq(group_id))
+                .add(user_group::Column::UserId.eq(user_elt.id)),
+        )
+        .one(&db)
+        .await?;
+    let _ = match to_remove {
+        Some(v) => {
+            // remove from user_group first
+            v.delete(&db).await?
+        }
+        None => return Ok(actix_web::error::ErrorNotFound("No ID found").into()),
+    };
+
+    Ok(HttpResponse::NoContent().into())
 }
