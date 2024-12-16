@@ -1,36 +1,59 @@
-use super::models::{Task, Schedule};
 use super::utilities;
-
+use super::{
+    services_category::*, services_group::*, services_schedule::*, services_schedule_group::*,
+    services_task::*, services_user::*, services_user_group::*,
+};
+use ::entity::{schedule, task};
 use actix_web::http::header::ContentType;
-use actix_web::{get, put, web, HttpResponse};
-use sqlx::PgConnection;
+use actix_web::{put, HttpResponse};
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        create_tables,
         list_tasks,
-        list_schedules,
-        new_schedule,
         new_task,
         update_task,
+        delete_task,
+        list_schedules,
+        new_schedule,
         update_schedule,
-        create_tables,
+        delete_schedule,
+        list_categories,
+        new_category,
+        update_category,
+        list_users,
+        new_user,
+        create_my_user,
+        delete_user,
+        list_groups,
+        new_group,
+        delete_group,
+        list_user_groups,
+        new_user_group,
+        delete_user_group,
+        list_my_groups,
+        list_my_groups_admin,
+        list_schedule_groups,
+        new_schedule_group,
+        delete_schedule_group
     ),
-    components(schemas(
-            Schedule,
-            Task
-    ))
+    components(schemas(schedule::Model, task::Model,))
 )]
 pub struct ApiDocScheduler;
 
 #[utoipa::path(
         responses(
             (
-                status = 201, 
+                status = 201,
                 description = "Creates tables if did not exists", 
                 content_type = "text/plain"
             )
+        ),
+        tag = "admin",
+        security(
+            ("bearerAuth" = [])
         )
 )]
 #[put("/create_tables")]
@@ -47,143 +70,4 @@ pub async fn create_tables() -> HttpResponse {
     HttpResponse::Created()
         .content_type(ContentType::plaintext())
         .body("Tables exists or have been created")
-}
-
-#[utoipa::path(
-        request_body(
-            content=Task,
-            example=json!( Task::example())
-        ),
-        responses(
-            (
-                status = 201, 
-                description = "Create or update a task",
-                content_type = "text/plain",
-            ),
-        )
-)]
-#[put("/update-task")]
-pub async fn update_task(task_data: web::Json<Task>) -> HttpResponse {
-    let conn: PgConnection = utilities::sql_connect().await;
-    match utilities::update_task(conn, &task_data.into_inner()).await {
-        Ok(v) => {
-            return HttpResponse::Created().json(v);
-        }
-        Err(err) => {
-            return HttpResponse::InternalServerError().body(format!("{:?}",err));
-        }
-    };
-}
-
-#[utoipa::path(
-        request_body(
-            content = Schedule,
-            example = json!( 
-                Schedule::default()
-            )
-        ),
-        responses(
-            (
-                status = 201, 
-                description = "Create or update schedule with its label and tasks",
-                content_type = "text/json",
-            )
-        )
-)]
-#[put("/update-schedule")]
-pub async fn update_schedule(schedule: web::Json<Schedule>) -> HttpResponse {
-    let conn: PgConnection = utilities::sql_connect().await;
-    match utilities::update_schedule(conn, &schedule).await {
-        Ok(v) => {
-            return HttpResponse::Created().json(v);
-        }
-        Err(err) => {
-            return HttpResponse::InternalServerError().body(format!("{:?}",err));
-        }
-    };
-}
-
-#[utoipa::path(
-        request_body(
-            content = Schedule,
-            example = json!( 
-                Schedule::default()
-            )
-        ),
-        responses(
-            (
-                status = 201, 
-                description = "id of the newly created schedule",
-                content_type = "text/json",
-            )
-        )
-)]
-#[put("/new-schedule")]
-pub async fn new_schedule(new_schedule: web::Json<Schedule>) -> HttpResponse {
-    let conn: PgConnection = utilities::sql_connect().await;
-    match utilities::new_schedule(conn, &new_schedule).await {
-        Ok(v) => {
-            return HttpResponse::Created().json(v);
-        }
-        Err(err) => {
-            return HttpResponse::InternalServerError().body(format!("{:?}",err));
-        }
-    };
-}
-
-#[utoipa::path(
-        request_body(
-            content = Task,
-            example = json!( 
-                Task::default()
-            )
-        ),
-        responses(
-            (
-                status = 201, 
-                description = "Create a new task",
-                content_type = "text/json",
-            )
-        )
-)]
-#[put("/new-task")]
-pub async fn new_task(task: web::Json<Task>) -> HttpResponse {
-    let conn: PgConnection = utilities::sql_connect().await;
-    match utilities::new_task(conn, &task).await {
-        Ok(v) => {
-            return HttpResponse::Created().json(v);
-        }
-        Err(err) => {
-            return HttpResponse::InternalServerError().body(format!("{:?}",err));
-        }
-   };
-}
-
-
-#[utoipa::path(
-        responses(
-            (status = 200, description = "Fetch all schedules", body = [Vec::<Task>], example= json!(vec![Task::default()]))
-        )
-)]
-#[get("/list-tasks")]
-pub async fn list_tasks() -> web::Json<Vec<Task>> {
-    let query = "SELECT * FROM task";
-    let mut conn = utilities::sql_connect().await;
-    let schedule_db = sqlx::query_as(query).fetch_all(&mut conn).await.unwrap();
-
-    web::Json(schedule_db)
-}
-
-#[utoipa::path(
-        responses(
-            (status = 200, description = "list schedules", body = [Vec::<Schedule>] )
-        )
-)]
-#[get("/list-schedules")]
-pub async fn list_schedules() -> web::Json<Vec<Schedule>>{
-    let query = "SELECT * FROM schedule";
-    let mut conn = utilities::sql_connect().await;
-    let schedule_db = sqlx::query_as(query).fetch_all(&mut conn).await.unwrap();
-
-    web::Json(schedule_db)
 }

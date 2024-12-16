@@ -2,7 +2,10 @@ use actix_cors::Cors;
 use actix_web::{middleware::Logger, services, web, App, HttpServer};
 use env_logger::Env;
 use std::env;
-use utoipa::OpenApi;
+use utoipa::{
+    openapi::security::{self, HttpAuthScheme, SecurityScheme},
+    Modify, OpenApi,
+};
 use utoipa_swagger_ui::SwaggerUi;
 
 use scheduler_back::schedule_service;
@@ -23,14 +26,22 @@ async fn main() -> std::io::Result<()> {
     #[derive(OpenApi)]
     #[openapi(
         nest(
-            (path = "/scheduler", api = schedule_service::ApiDocScheduler, tags = ["Scheduler service"]),
+            (path = "/scheduler", api = schedule_service::ApiDocScheduler),
         ),
-        tags(
-            (name = "Scheduler service", description = "Backend of the scheduler service")
-        )
+        modifiers(&SecurityAddon)
     )]
     struct ApiDoc;
+    struct SecurityAddon;
 
+    impl Modify for SecurityAddon {
+        fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+            let components = openapi.components.as_mut().unwrap(); // we can unwrap safely since there already is components registered.
+            components.add_security_scheme(
+                "bearer_token",
+                SecurityScheme::Http(security::Http::new(HttpAuthScheme::Bearer)),
+            )
+        }
+    }
     let openapi = ApiDoc::openapi();
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -43,15 +54,51 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
             .wrap(cors)
-            .service(web::scope("/scheduler").service(services![
-                schedule_service::create_tables,
-                schedule_service::list_tasks,
-                schedule_service::list_schedules,
-                schedule_service::new_schedule,
-                schedule_service::new_task,
-                schedule_service::update_task,
-                schedule_service::update_schedule,
-            ]))
+            .service(
+                web::scope("/scheduler")
+                    .service(schedule_service::create_tables)
+                    .service(services![
+                        schedule_service::list_tasks,
+                        schedule_service::new_task,
+                        schedule_service::update_task,
+                        schedule_service::delete_task,
+                    ])
+                    .service(services![
+                        schedule_service::list_schedules,
+                        schedule_service::new_schedule,
+                        schedule_service::update_schedule,
+                        schedule_service::delete_schedule,
+                    ])
+                    .service(services![
+                        schedule_service::list_categories,
+                        schedule_service::new_category,
+                        schedule_service::update_category,
+                    ])
+                    .service(services![
+                        schedule_service::list_users,
+                        schedule_service::new_user,
+                        schedule_service::delete_user,
+                        schedule_service::delete_user,
+                        schedule_service::create_my_user,
+                    ])
+                    .service(services![
+                        schedule_service::list_groups,
+                        schedule_service::new_group,
+                        schedule_service::delete_group,
+                        schedule_service::list_my_groups,
+                        schedule_service::list_my_groups_admin,
+                    ])
+                    .service(services![
+                        schedule_service::list_user_groups,
+                        schedule_service::new_user_group,
+                        schedule_service::delete_user_group,
+                    ])
+                    .service(services![
+                        schedule_service::list_schedule_groups,
+                        schedule_service::new_schedule_group,
+                        schedule_service::delete_schedule_group,
+                    ]),
+            )
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
             )
